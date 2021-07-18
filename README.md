@@ -4,23 +4,23 @@
 I am studying at the __School of Information at the University of Michigan__, in the online Master of Applied Data Science.
 During the __SIADS 516 course Big Data: Scalable Data Processing__ course we studied Spark 
 while I was also studying at the same time for the AWS Certification __Data Analytics Specialty__.
-I thus decided to crete a package with the AWS CDK to deploy my own AWS EMR Spark environment and try to run my homework
+I thus decided to create a package with the AWS CDK to deploy my own AWS EMR Spark environment and try to run my homework
 assignments on a full cluster instead of a single node.
 
 ## What does this code do?
 
-It deploys a full test environment (VPC, S3 buckets, EMR cluster, etc) and creates and run the Spark tasks (EMR steps)
+It deploys a full test environment (VPC, S3 buckets, EMR cluster, etc.) and creates and run the Spark tasks (EMR steps)
 defined in the `./emr_steps` folder. It also creates the Network Security Group and IAM role to create an EMR Notebook
 (it does not create the notebook itself as there seem to be no CloudFormation resource to do that).
 
-So despite it started with the MADS SIADS 516 course in mind, I tried to made this repository flexible 
+Despite it started with the MADS SIADS 516 course in mind, I tried to make this repository flexible 
 so you can extend it to run your own Spark jobs.
 
 The architecture diagram shows the components deployed in this stack:
-* a decidated VPC, with public and private subnets, internet and nat gateways
+* a dedicated VPC, with public and private subnets, internet and nat gateways
 * the Network Security Groups for the cluster
 * the S3 buckets for the Spark logs and the data (code, input data files and jobs outputs)
-* IAM Roles for the culster instances and EMR service
+* IAM Roles for the cluster instances and EMR service
 * the EMR cluster itself
 * a VPC Endpoint for Systems Manager to access the instances if needed using Systems Manager instead of opening SSH ports
 * a gateway VPC endpoint for the instances to access the S3 service directly
@@ -49,7 +49,7 @@ The stack is created in the `app.py` file by creating an `AwsEmrSparkStack` obje
 
 | Parameter | Description | Optional | Default value |
 |---|---|---|---|
-| cider | The CIDR range of the VPC. It will be split in half to create both private and pblic subnets | Yes | 172.16.0.0/22 |
+| cider | The CIDR range of the VPC. It will be split in half to create both private and public subnets | Yes | 172.16.0.0/22 |
 | max_azs | The number of AZ. However even if you set more than one, only the first one will be used to deploy the cluster | Yes | 1 |
 | naming_prefix | A naming prefix attached to resources like S3 buckets | Yes | "default" |
 | naming_suffix | A naming suffix attached to resources like S3 buckets | Yes | A random combination of 8 characters and numbers |
@@ -141,7 +141,7 @@ command.
  * `cdk diff`        compare deployed stack with current state
  * `cdk docs`        open CDK documentation
 
-## How to configure and run my Spark jobs ?
+## How to configure and run Spark jobs ?
 
 The configuration and data for your Spark jobs must be created in the `./emr_steps` folder.
 * the `./emr_steps/emr_steps_configuration.json` file contains a list of the configuration of your spark jobs
@@ -203,7 +203,7 @@ part of the results.
 
 ### Accessing the Spark logs
 
-If anything go wrong with your Spark job, you can look in the logs S3 bucket created in the stack.
+If anything goes wrong with your Spark job, you can look in the logs S3 bucket created in the stack.
 There will be a folder for the cluster name. In it there should be 3 folders `containers/`, `node/` and `steps/`.
 
 The EMR Spark step logs are in the `steps/application_XXXXXX_<job number>/<container name>/stdout.gz` file.
