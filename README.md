@@ -7,7 +7,7 @@ while I was also studying at the same time for the AWS Certification __Data Anal
 I thus decided to crete a package with the AWS CDK to deploy my own AWS EMR Spark environment and try to run my homework
 assignments on a full cluster instead of a single node.
 
-## What does this package do?
+## What does this code do?
 
 It deploys a full test environment (VPC, S3 buckets, EMR cluster, etc) and creates and run the Spark tasks (EMR steps)
 defined in the `./emr_steps` folder.
@@ -25,6 +25,54 @@ The architecture diagram shows the components deployed in this stack:
 * a gateway VPC endpoint for the instances to access the S3 service directly
 
 ![](images/emr-stack-architecture.jpg)
+
+### Why just one AZ ?
+
+This stack deploys EMR Instance Groups and not Instance Fleets and Instance Groups can only be deployed in a single AZ.
+
+### What type of instances are deployed ?
+
+By default the stack deploys `m4.large` __SPOT__ instances as follow
+* 1 master node
+* 2 core nodes
+
+You can change the instance type and number of core nodes using the parameters passed to the `AwsEmrSparkStack` object.
+
+### Stack parameters
+
+The stack is created in the `app.py` file by creating an `AwsEmrSparkStack` object. It accepts the following parameters.
+
+| Parameter | Description | Optional | Default value |
+|---|---|---|---|
+| cider | The CIDR range of the VPC. It will be split in half to create both private and pblic subnets | Yes | 172.16.0.0/22 |
+| max_azs | The number of AZ. However even if you set more than one, only the first one will be used to deploy the cluster | Yes | 1 |
+| naming_prefix | A naming prefix attached to resources like S3 buckets | Yes | "default" |
+| naming_suffix | A naming suffix attached to resources like S3 buckets | Yes | A random combination of 8 characters and numbers |
+| instance_type | The instance type used by the master and core nodes | Yes | m4.large |
+| instance_consumption | The instance consumption type. Can be SPOT or ON_DEMAND | Yes | SPOT |
+| nb_core_instances | The number of core instances deployed | Yes | 2 |
+
+Example in the `app.py` file:
+```
+emr_stack = AwsEmrSparkStack(
+    scope=app,
+    construct_id="AwsEmrSparkStack",
+    naming_prefix="mads-siads-516")
+```
+
+## Prerequisites
+
+To deploy this stack you must have:
+* an AWS Account
+* the [AWS CLI installed](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+* the [AWS CLI configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) with an IAM user and access keys
+* Python >= 3.6 installed
+* the [AWS CDK installed](https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html)
+
+Other useful links:
+* [The GitHub repository of the AWS CDK](https://github.com/aws/aws-cdk)
+
+## How to deploy this stack?
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
@@ -60,17 +108,27 @@ Once the virtualenv is activated, you can install the required dependencies.
 $ pip install -r requirements.txt
 ```
 
-At this point you can now synthesize the CloudFormation template for this code.
+At this point you can now synthesize the CloudFormation template for this code
+to see the resources that the stack will create
 
 ```
 $ cdk synth
 ```
 
+To actually deploy the stack to your default AWS account and region.
+* If you have several AWS profiles configured, add the option `--profile <profile name>`
+* If you want to deploy in a different region use the option `--region <region name>`
+
+```
+$ cdk deploy
+```
+
+
 To add additional dependencies, for example other CDK libraries, just add
 them to your `setup.py` file and rerun the `pip install -r requirements.txt`
 command.
 
-## Useful commands
+### Useful AWS CDK commands
 
  * `cdk ls`          list all stacks in the app
  * `cdk synth`       emits the synthesized CloudFormation template
@@ -78,4 +136,14 @@ command.
  * `cdk diff`        compare deployed stack with current state
  * `cdk docs`        open CDK documentation
 
-Enjoy!
+## How to delete this stack?
+
+```
+$ cdk destroy
+```
+
+__Warning__:
+
+Because they contain the Spark logs and outputs, the S3 buckets are retained by the stack (i.e. they are not destroyed).
+
+You will have to manually empty and delete them once you are finished with the data they contain.
