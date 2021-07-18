@@ -1,0 +1,13 @@
+{
+  "steps": [
+    {
+      "name": "step1",
+      "code_filename": "step1.py"
+    },
+    {
+      "name": "step2",
+      "code_filename": "step2.py",
+      "data_source_folder": "step2"
+    }
+  ]
+}

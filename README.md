@@ -1,7 +1,30 @@
 
-# Welcome to your CDK Python project!
+# Deploy a simple AWS EMR Spark cluster with AWS CDK
 
-This is a blank project for Python development with CDK.
+I am studying at the __School of Information at the University of Michigan__, in the online Master of Applied Data Science.
+During the __SIADS 516 course Big Data: Scalable Data Processing__ course we studied Spark 
+while I was also studying at the same time for the AWS Certification __Data Analytics Specialty__.
+I thus decided to crete a package with the AWS CDK to deploy my own AWS EMR Spark environment and try to run my homework
+assignments on a full cluster instead of a single node.
+
+## What does this package do?
+
+It deploys a full test environment (VPC, S3 buckets, EMR cluster, etc) and creates and run the Spark tasks (EMR steps)
+defined in the `./emr_steps` folder.
+
+So despite it started with the MADS SIADS 516 course in mind, I tried to made this repository flexible 
+so you can extend it to run your own Spark jobs.
+
+The architecture diagram shows the components deployed in this stack:
+* a decidated VPC, with public and private subnets, internet and nat gateways
+* the Network Security Groups for the cluster
+* the S3 buckets for the Spark logs and the data (code, input data files and jobs outputs)
+* IAM Roles for the culster instances and EMR service
+* the EMR cluster itself
+* a VPC Endpoint for Systems Manager to access the instances if needed using Systems Manager instead of opening SSH ports
+* a gateway VPC endpoint for the instances to access the S3 service directly
+
+![](images/emr-stack-architecture.jpg)
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
