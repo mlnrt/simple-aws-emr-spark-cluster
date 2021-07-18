@@ -23,12 +23,16 @@ The architecture diagram shows the components deployed in this stack:
 * the EMR cluster itself
 * a VPC Endpoint for Systems Manager to access the instances if needed using Systems Manager instead of opening SSH ports
 * a gateway VPC endpoint for the instances to access the S3 service directly
+  
+The stack also
+* pushes the data and PySpark code to the data s3 bucket
+* automatically creates the EMR steps to run your Spark jobs and outputs the results in the data S3 bucket 
 
 ![](images/emr-stack-architecture.jpg)
 
 ### Why just one AZ ?
 
-This stack deploys EMR Instance Groups and not Instance Fleets and Instance Groups can only be deployed in a single AZ.
+This stack deploys EMR __Instance Groups__ and not __Instance Fleets__ and Instance Groups can only be deployed in a single AZ.
 
 ### What type of instances are deployed ?
 
@@ -36,7 +40,7 @@ By default the stack deploys `m4.large` __SPOT__ instances as follow
 * 1 master node
 * 2 core nodes
 
-You can change the instance type and number of core nodes using the parameters passed to the `AwsEmrSparkStack` object.
+You can change the instance type and number of core nodes using the parameters passed to the `AwsEmrSparkStack` object in the `app.py` file.
 
 ### Stack parameters
 
@@ -136,7 +140,76 @@ command.
  * `cdk diff`        compare deployed stack with current state
  * `cdk docs`        open CDK documentation
 
-## How to delete this stack?
+## How to configure and run my Spark jobs ?
+
+The configuration and data for your Spark jobs must be created in the `./emr_steps` folder.
+* the `./emr_steps/emr_steps_configuration.json` file contains a list of the configuration of your spark jobs
+* the `./emr_steps/code` folder contains the Python code for your Spark jobs. One file per job.
+* the `./emr_steps/data` folder contains the folders with the data required for your Spark jobs. One folder per job.
+
+__Note:__
+
+This stack will copy the code and data to the S3 data bucket in the corresponding `code/` and `data/` root folders. 
+If your data are very large, another method would have to be used to transfer them
+ and this stack would need to be modified.
+
+### The Spark Jobs configuration
+
+The Spark jobs to be run on the cluster are configures in the `./emr_steps/emr_steps_configuration.json` file.
+It is a list of steps, each containing
+* a `name` attribute
+* a `code_filename` attribute indicating the Python file name in the `./emr_steps/code` folder
+  containing the code for the job.
+* a `data_source_folder` optional attribute indicating the folder in the `./emr_steps/data` folder
+  containing the data for the job
+
+Example:
+```
+{
+  "steps": [
+    {
+      "name": "step1",
+      "code_filename": "step1.py"
+    },
+    {
+      "name": "step2",
+      "code_filename": "step2.py",
+      "data_source_folder": "step2"
+    }
+  ]
+}
+```
+
+The example jobs in this stack are coming from:
+* step1: The AWS documentation [Write a Spark application](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark-application.html)
+* step2: An adaptation I made of some homework from the MADS program SIADS 516 course.
+  It uses a text document of old New York Times articles.
+
+### Bootstraping the EMR instances
+
+If your Spark jobs requires special Python packages, they will need to be installed on the EMR instances.
+
+To do so, the stack is configured to run a bootstrap shell script on the instances once they are started.
+The shell script is configured in the `./ec2_bootstrap_scripts/bootstrap.sh` file.
+
+## Spark jobs results and logs
+
+### Accessing the Spark jobs results
+
+The results of the Spark jobs are stored in the S3 __data__ bucket created by the stack 
+in the `outputs/<job name>/` folder. The results are stored in parts. Each instance of the cluster outputing its
+part of the results.
+
+### Accessing the Spark logs
+
+If anything go wrong with your Spark job, you can look in the logs S3 bucket created in the stack.
+There will be a folder for the cluster name. In it there should be 3 folders `containers/`, `node/` and `steps/`.
+
+The EMR Spark step logs are in the `steps/application_XXXXXX_<job number>/<container name>/stdout.gz` file.
+
+The Python code logs and errors are in the `containers/<job ID>/stderr.gz` file.
+
+## How to delete this stack ?
 
 ```
 $ cdk destroy
@@ -147,3 +220,7 @@ __Warning__:
 Because they contain the Spark logs and outputs, the S3 buckets are retained by the stack (i.e. they are not destroyed).
 
 You will have to manually empty and delete them once you are finished with the data they contain.
+
+## To do
+* Add outputs to the stack (e.g. the S3 buckets names, EMR cluster name, etc...)
+* Add asserts on Spark job configuration and the parameters of the `AwsEmrSparkStack` object.

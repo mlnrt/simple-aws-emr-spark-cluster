@@ -1,4 +1,0 @@
---master yarn
-
---data_source s3://mads-siads-516-emr-spark-data-pd6ilrgi/nytimes/nytimes_news_articles.txt
---output_uri s3://mads-siads-516-emr-spark-data-pd6ilrgi/outputs
