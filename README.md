@@ -10,7 +10,8 @@ assignments on a full cluster instead of a single node.
 ## What does this code do?
 
 It deploys a full test environment (VPC, S3 buckets, EMR cluster, etc) and creates and run the Spark tasks (EMR steps)
-defined in the `./emr_steps` folder.
+defined in the `./emr_steps` folder. It also creates the Network Security Group and IAM role to create an EMR Notebook
+(it does not create the notebook itself as there seem to be no CloudFormation resource to do that).
 
 So despite it started with the MADS SIADS 516 course in mind, I tried to made this repository flexible 
 so you can extend it to run your own Spark jobs.

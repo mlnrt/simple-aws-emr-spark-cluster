@@ -66,6 +66,12 @@ class AwsEmrSparkStack(cdk.Stack):
             vpc=self.vpc,
             allow_all_outbound=False,
             security_group_name="EmrServiceAccessSecurityGroup")
+        self.sg_notebook_security_group = ec2.SecurityGroup(
+            self,
+            "EmrNotebookSecurityGroup",
+            vpc=self.vpc,
+            allow_all_outbound=False,
+            security_group_name="EmrNotebookSecurityGroup")
 
         # Add the inbound and outbound rules to the security groups of the MASTER node
         self.sg_master_security_group.add_ingress_rule(
@@ -117,6 +123,13 @@ class AwsEmrSparkStack(cdk.Stack):
                 string_representation="All ICMP - IPv4",
                 from_port=-1,
                 to_port=-1))
+        self.sg_master_security_group.add_ingress_rule(
+            peer=self.sg_notebook_security_group,
+            connection=ec2.Port(
+                protocol=ec2.Protocol.TCP,
+                string_representation="All TCP",
+                from_port=0,
+                to_port=65535))
         # Add the inbound and outbound rules to the security groups of the CORE nodes
         self.sg_slave_security_group.add_ingress_rule(
             peer=self.sg_service_access_security_group,
@@ -190,6 +203,23 @@ class AwsEmrSparkStack(cdk.Stack):
                 string_representation="Custom TCP",
                 from_port=8443,
                 to_port=8443))
+        # Add the inbound and outbound rules to the security groups for the NOTEBOOK instance
+        # No notebook instance is automatically provisioned but the stack creates the IAM Role
+        # and NSG for it
+        self.sg_notebook_security_group.add_egress_rule(
+            peer=self.sg_master_security_group,
+            connection=ec2.Port(
+                protocol=ec2.Protocol.TCP,
+                string_representation="All TCP",
+                from_port=0,
+                to_port=65535))
+        self.sg_notebook_security_group.add_egress_rule(
+            peer=self.sg_master_security_group,
+            connection=ec2.Port(
+                protocol=ec2.Protocol.UDP,
+                string_representation="All UDP",
+                from_port=0,
+                to_port=65535))
 
         # Add Interface endpoint for SSM
         self.ssm_endpoint = self.vpc.add_interface_endpoint(
@@ -292,18 +322,12 @@ class AwsEmrSparkStack(cdk.Stack):
                             effect=iam.Effect.ALLOW,
                             resources=["*"]),
                         iam.PolicyStatement(
-                            sid="AllowToListS3BucketObjects",
-                            actions=["s3:ListBucket"],
+                            sid="AllowAllToDataS3Bucket",
+                            actions=["s3:*"],
                             effect=iam.Effect.ALLOW,
-                            resources=[self.data_bucket.bucket_arn]),
-                        iam.PolicyStatement(
-                            sid="AllowAccessToS3BucketObjects",
-                            actions=[
-                                "s3:PutObject",
-                                "s3:GetObject",
-                                "s3:DeleteObject"],
-                            effect=iam.Effect.ALLOW,
-                            resources=[self.data_bucket.bucket_arn+"/*"])])},
+                            resources=[
+                                self.data_bucket.bucket_arn,
+                                self.data_bucket.bucket_arn+"/*"])])},
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
                     "service-role/AmazonElasticMapReduceEditorsRole")],
