@@ -88,7 +88,7 @@ directory.  To create the virtualenv it assumes that there is a `python3`
 package. If for any reason the automatic creation of the virtualenv fails,
 you can create the virtualenv manually.
 
-To manually create a virtualenv on MacOS and Linux:
+To manually create a virtualenv:
 
 ```
 $ python -m venv .venv
@@ -101,10 +101,10 @@ step to activate your virtualenv.
 $ source .venv/bin/activate
 ```
 
-If you are a Windows platform, you would activate the virtualenv like this:
+If you are a Windows platform, you can activate the virtualenv by just running the .BAT script:
 
 ```
-% .venv\Scripts\activate.bat
+% .source.bat
 ```
 
 Once the virtualenv is activated, you can install the required dependencies.
