@@ -212,7 +212,7 @@ Example:
     {
       "name": "step2",
       "code_filename": "step2.py",
-      "data_source_bucket": "s3://my-preexisting-data-s3-bucket",
+      "data_source_bucket": "s3://my-pre-existing-data-s3-bucket",
       "data_source_folder": "siads-516/nytimes",
       "code_source_folder": "siads-516/code"
     }
