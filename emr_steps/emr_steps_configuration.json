@@ -8,6 +8,13 @@
       "name": "step2",
       "code_filename": "step2.py",
       "data_source_folder": "step2"
+    },
+    {
+      "name": "step3",
+      "code_filename": "step3.py",
+      "data_source_bucket": "s3://amanox-mlnrt-umsi-mads-data",
+      "data_source_folder": "siads-516/nytimes",
+      "code_source_folder": "siads-516/code"
     }
   ]
 }

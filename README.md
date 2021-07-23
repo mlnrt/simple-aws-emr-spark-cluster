@@ -56,6 +56,7 @@ The stack is created in the `app.py` file by creating an `AwsEmrSparkStack` obje
 | instance_type | The instance type used by the master and core nodes | Yes | m4.large |
 | instance_consumption | The instance consumption type. Can be SPOT or ON_DEMAND | Yes | SPOT |
 | nb_core_instances | The number of core instances deployed | Yes | 2 |
+| existing_data_buckets | The list of pre-existing data S3 buckets used in the EMR steps  | Yes | [] |
 
 Example in the `app.py` file:
 ```
@@ -79,7 +80,7 @@ Other useful links:
 
 ## How to deploy this stack?
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+The `cdk.json` file tells the CDK Toolkit how to execute your app. 
 
 This project is set up like a standard Python project.  The initialization
 process also creates a virtualenv within this project, stored under the `.venv`
@@ -113,6 +114,19 @@ Once the virtualenv is activated, you can install the required dependencies.
 $ pip install -r requirements.txt
 ```
 
+To use the CDK in your environment
+* You will need to configure your [AWS CLI command `aws configure`](https://docs.aws.amazon.com/cdk/latest/guide/cli.html#cli-environment)
+* The region used will be the one configure in your profile
+* If you have several AWS CLI profiles add the option `--profile <profile name>` to specify a profile 
+  different than the default one
+* If you have never used the CDK in your account and region [you will need to bootstrap it first](https://docs.aws.amazon.com/cdk/latest/guide/bootstrapping.html).
+
+Bootstrap the CDK in your environment using your default AWS CLI profile
+
+```
+$ cdk bootstrap
+```
+
 At this point you can now synthesize the CloudFormation template for this code
 to see the resources that the stack will create
 
@@ -121,8 +135,6 @@ $ cdk synth
 ```
 
 To actually deploy the stack to your default AWS account and region.
-* If you have several AWS profiles configured, add the option `--profile <profile name>`
-* If you want to deploy in a different region use the option `--region <region name>`
 
 ```
 $ cdk deploy
@@ -158,7 +170,7 @@ If your data are very large, another method would have to be used to transfer th
 
 The Spark jobs to be run on the cluster are configures in the `./emr_steps/emr_steps_configuration.json` file.
 It is a list of steps, each containing
-* a `name` attribute
+* a `name` attribute. Steps' name __must be unique__ in the list 
 * a `code_filename` attribute indicating the Python file name in the `./emr_steps/code` folder
   containing the code for the job.
 * a `data_source_folder` optional attribute indicating the folder in the `./emr_steps/data` folder
@@ -186,6 +198,28 @@ The example jobs in this stack are coming from:
 * step2: An adaptation I made of some homework from the MADS program SIADS 516 course.
   It uses a text document of old New York Times articles.
 
+### The Spark Jobs for code and data already in S3
+
+If your data __and__ code are already __in the same S3 bucket__ you can also specify that 
+in the EMR steps configuration file as follow:
+* use the `data_source_bucket` option to specify the S3 bucket __root__ URL
+* use the `data_source_folder` and `code_source_folder` options to specify the folder names
+
+Example:
+```
+{
+  "steps": [
+    {
+      "name": "step2",
+      "code_filename": "step2.py",
+      "data_source_bucket": "s3://my-preexisting-data-s3-bucket",
+      "data_source_folder": "siads-516/nytimes",
+      "code_source_folder": "siads-516/code"
+    }
+  ]
+}
+```
+
 ### Bootstraping the EMR instances
 
 If your Spark jobs requires special Python packages, they will need to be installed on the EMR instances.
@@ -210,6 +244,8 @@ The EMR Spark step logs are in the `steps/application_XXXXXX_<job number>/<conta
 
 The Python code logs and errors are in the `containers/<job ID>/stderr.gz` file.
 
+__Warning!__ The AWS EMR logs can grow very big, impacting your bill.
+
 ## How to delete this stack ?
 
 ```
@@ -223,5 +259,4 @@ Because they contain the Spark logs and outputs, the S3 buckets are retained by 
 You will have to manually empty and delete them once you are finished with the data they contain.
 
 ## To do
-* Add outputs to the stack (e.g. the S3 buckets names, EMR cluster name, etc...)
 * Add asserts on Spark job configuration and the parameters of the `AwsEmrSparkStack` object.

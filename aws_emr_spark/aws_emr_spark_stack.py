@@ -1,6 +1,6 @@
 import string
 import random
-
+from s3path import S3Path
 from aws_cdk import (core as cdk,
                      aws_ec2 as ec2,
                      aws_s3 as s3,
@@ -29,6 +29,7 @@ class AwsEmrSparkStack(cdk.Stack):
         self.instance_type = kwargs.pop("instance_type", "m4.large")
         self.instance_consumption = kwargs.pop("instance_consumption", "SPOT")
         self.nb_core_instances = kwargs.pop("nb_core_instances", 2)
+        self.existing_data_buckets = kwargs.pop("existing_data_buckets", [])
         super().__init__(scope, construct_id, **kwargs)
 
         #
@@ -181,7 +182,7 @@ class AwsEmrSparkStack(cdk.Stack):
                 from_port=-1,
                 to_port=-1))
         # Add the inbound and outbound rules to the security groups for the SERVICE ACCESS
-        # This is only requeired when the cluster runs in a private subnet
+        # This is only required when the cluster runs in a private subnet
         self.sg_service_access_security_group.add_ingress_rule(
             peer=self.sg_master_security_group,
             connection=ec2.Port(
@@ -260,7 +261,7 @@ class AwsEmrSparkStack(cdk.Stack):
         )
 
         # transfer the data of the steps to S3
-        step_data = s3_deploy.BucketDeployment(
+        s3_deploy.BucketDeployment(
             self,
             "EmrSparkS3BucketDeploymentForData",
             destination_bucket=self.data_bucket,
@@ -280,27 +281,75 @@ class AwsEmrSparkStack(cdk.Stack):
         #
         # IAM
         #
-        self.emr_service_role = iam.Role(
-            self,
-            "emrServiceRole",
-            assumed_by=iam.ServicePrincipal(service="elasticmapreduce.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AmazonElasticMapReduceRole")],
-            role_name="emr_service_role_" + self.naming_suffix
-        )
+        if self.existing_data_buckets:
+            resources=[]
+            for bucket in self.existing_data_buckets:
+                # strip potential ending backslash and "s3://" at the beginning
+                bucket_arn = "arn:aws:s3:::" + bucket.strip("/")[5:]
+                resources += [bucket_arn , bucket_arn +"/*"]
 
-        self.emr_ec2_role = iam.Role(
-            self,
-            "emrEc2InstanceRole",
-            assumed_by=iam.ServicePrincipal(service="ec2.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AmazonElasticMapReduceforEC2Role"),
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "AmazonSSMManagedInstanceCore")],
-            role_name="emr_ec2_role_" + self.naming_suffix
-        )
+            self.emr_service_role = iam.Role(
+                self,
+                "emrServiceRole",
+                assumed_by=iam.ServicePrincipal(service="elasticmapreduce.amazonaws.com"),
+                inline_policies={
+                    "AmazonElasticMapReduceRole_inline_policy": iam.PolicyDocument(
+                        statements=[
+                            iam.PolicyStatement(
+                                sid="AllowAccessToExistingS3Buckets",
+                                actions=[
+                                    "s3:List*",
+                                    "s3:Get*"
+                                ],
+                                effect=iam.Effect.ALLOW,
+                                resources=resources)])},
+                managed_policies=[
+                    iam.ManagedPolicy.from_aws_managed_policy_name(
+                        "service-role/AmazonElasticMapReduceRole")],
+                role_name="emr_service_role_" + self.naming_suffix
+            )
+
+            self.emr_ec2_role = iam.Role(
+                self,
+                "emrEc2InstanceRole",
+                assumed_by=iam.ServicePrincipal(service="ec2.amazonaws.com"),
+                inline_policies={
+                    "emrEc2InstanceRole_inline_policy": iam.PolicyDocument(
+                        statements=[
+                            iam.PolicyStatement(
+                                sid="AllowAccessToExistingS3Buckets",
+                                actions=["s3:*"],
+                                effect=iam.Effect.ALLOW,
+                                resources=resources)])},
+                managed_policies=[
+                    iam.ManagedPolicy.from_aws_managed_policy_name(
+                        "service-role/AmazonElasticMapReduceforEC2Role"),
+                    iam.ManagedPolicy.from_aws_managed_policy_name(
+                        "AmazonSSMManagedInstanceCore")],
+                role_name="emr_ec2_role_" + self.naming_suffix
+            )
+        else:
+            self.emr_service_role = iam.Role(
+                self,
+                "emrServiceRole",
+                assumed_by=iam.ServicePrincipal(service="elasticmapreduce.amazonaws.com"),
+                managed_policies=[
+                    iam.ManagedPolicy.from_aws_managed_policy_name(
+                        "service-role/AmazonElasticMapReduceRole")],
+                role_name="emr_service_role_" + self.naming_suffix
+            )
+
+            self.emr_ec2_role = iam.Role(
+                self,
+                "emrEc2InstanceRole",
+                assumed_by=iam.ServicePrincipal(service="ec2.amazonaws.com"),
+                managed_policies=[
+                    iam.ManagedPolicy.from_aws_managed_policy_name(
+                        "service-role/AmazonElasticMapReduceforEC2Role"),
+                    iam.ManagedPolicy.from_aws_managed_policy_name(
+                        "AmazonSSMManagedInstanceCore")],
+                role_name="emr_ec2_role_" + self.naming_suffix
+            )
 
         self.emr_ec2_profile = iam.CfnInstanceProfile(
             self,
@@ -379,18 +428,89 @@ class AwsEmrSparkStack(cdk.Stack):
             visible_to_all_users=True
         )
 
+        #
+        # Generate Outputs
+        #
+        cdk.CfnOutput(
+            self,
+            "VpcIdOutput",
+            value=self.vpc.vpc_id,
+            description="The ID of the stack's VPC",
+            export_name="VpcId")
+        for i, public_subnet in enumerate(self.vpc.public_subnets):
+            cdk.CfnOutput(
+                self,
+                "PublicSubnetIdsOutput" + str(i),
+                value=public_subnet.subnet_id,
+                description="The ID of the public subnet " + str(i),
+                export_name="PublicSubnetId" + str(i))
+        for i, private_subnet in enumerate(self.vpc.private_subnets):
+            cdk.CfnOutput(
+                self,
+                "PrivateSubnetIdsOutput" + str(i),
+                value=private_subnet.subnet_id,
+                description="The ID of the private subnet " + str(i),
+                export_name="PrivateSubnetId" + str(i))
+        cdk.CfnOutput(
+            self,
+            "DataS3BucketNameOutput",
+            value=self.data_bucket.bucket_name,
+            description="The name of the data S3 bucket",
+            export_name="DataS3BucketName")
+        cdk.CfnOutput(
+            self,
+            "DataS3BucketArnOutput",
+            value=self.data_bucket.bucket_arn,
+            description="The ARN of the data S3 bucket",
+            export_name="DataS3BucketArn")
+        cdk.CfnOutput(
+            self,
+            "LogsS3BucketNameOutput",
+            value=self.logs_bucket.bucket_name,
+            description="The name of the EMR logs S3 bucket",
+            export_name="LogsS3BucketName")
+        cdk.CfnOutput(
+            self,
+            "LogsS3BucketArnOutput",
+            value=self.logs_bucket.bucket_arn,
+            description="The ARN of the EMR logs S3 bucket",
+            export_name="LogsS3BucketArn")
+        cdk.CfnOutput(
+            self,
+            "EmrClusterIdOutput",
+            value=self.emr_cluster.ref,
+            description="The ID of the EMR Spark cluster",
+            export_name="EmrClusterId")
+
 
     def create_spark_step(self, step_config: dict) -> None:
         sanetized_name = "".join(c for c in step_config["name"] if c.isalnum())
         args = ["spark-submit",
                 "--deploy-mode",
-                "cluster",
-                self.data_bucket.s3_url_for_object("code/" + step_config["code_filename"]),
-                "--output_uri",
-                self.data_bucket.s3_url_for_object("outputs/" + sanetized_name)]
+                "cluster"]
+        if "code_source_folder" in step_config and "data_source_folder" in step_config:
+            code_source_folder = step_config["code_source_folder"] \
+                if step_config["code_source_folder"][0] != "/" \
+                else step_config["code_source_folder"][1:]
+            code_source_uri = S3Path.from_uri(step_config["data_source_bucket"]) / \
+                    code_source_folder / \
+                    step_config["code_filename"]
+            args.append(code_source_uri.as_uri())
+        else:
+            args.append(self.data_bucket.s3_url_for_object("code/" + step_config["code_filename"]))
+        args.extend(["--output_uri", self.data_bucket.s3_url_for_object("outputs/" + sanetized_name)])
         if "data_source_folder" in step_config:
-            args.append("--data_source_folder")
-            args.append(self.data_bucket.s3_url_for_object("data/" + step_config["data_source_folder"]))
+            data_source_folder = step_config["data_source_folder"] \
+                if step_config["data_source_folder"][0] != "/" \
+                else step_config["data_source_folder"][1:]
+            # If no already existing data S3 bucket are specified, use the data bucket created with the stack
+            if "data_source_bucket" in step_config:
+                args.append("--data_source_folder")
+                data_source_uri = S3Path.from_uri(step_config["data_source_bucket"]) / data_source_folder
+                args.append(data_source_uri.as_uri())
+            else:
+                args.append("--data_source_folder")
+                args.append(self.data_bucket.s3_url_for_object( "data/" + data_source_folder ))
 
         emr.CfnStep(
             self,
